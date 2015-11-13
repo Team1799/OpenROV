@@ -1,5 +1,5 @@
 // Arduino Submarine Project
-// Controller Code
+// Transmitti Code
 // Created by: Josh V.
 // 
 // Purpose
@@ -11,8 +11,6 @@
 //   - "Beast Mode" to output the full range of the joystick when necessary
 //   - Displays connection status through an LED
 //
-// This work is licensed under the Creative Commons Attribution 4.0 International License. 
-// To view a copy of this license, visit http://creativecommons.org/licenses/by/4.0/.
 
 // Library to create a serial input/output for Xbee
 #include <SoftwareSerial.h>
@@ -82,7 +80,7 @@ void loop() {
     // Read and store recieved value
     value = xbee.parseInt();
     
-    // "Flush" previously recieved data to not overwhelm Xbee
+    // "Flush" previously recieved data to not overwhelm the arduino
     xbee.flush();
     
     // If retrieved value is 420, then confirm connection status
@@ -95,39 +93,43 @@ void loop() {
   
   // Takes potentiometer value, and if it's different than the previous value, or if it's 
   // been past the interval amount of time without changing values, then transmit the value
-  pot1x = 180-adjustRange(analogRead(A0), 1, 493, 494, 1020);
+  pot1x = adjustRange(analogRead(A0), 1, 493, 494, 1020, 1);
   if(( pot1xOld != pot1x ) || ( abs(time-pot1xLC) > interval )){
     xbee.println(1000+pot1x);
     pot1xLC = time;
+    Serial.println(pot1x);
   }
-  pot1xOld = pot1x;
   
-  // Repeat same process as pot1x
-  pot1y = adjustRange(analogRead(A1), 1, 505, 505, 1021);
+  
+  pot1y = adjustRange(analogRead(A1), 1, 505, 505, 1021, 2);
   if(( pot1yOld != pot1y ) || ( abs(time-pot1yLC) > interval )){
     xbee.println(2000+pot1y);
     pot1yLC = time;
   }
-  pot1yOld = pot1y;
-  
-  // Repeat same process as pot1x
-  pot2y = adjustRange(analogRead(A3), 3, 501, 501, 1018);
+
+  // Repeat same process as pot1x, except sending as a smaller integer
+  pot2y = adjustRange(analogRead(A3), 3, 501, 501, 1018, 4);
   if(( pot2yOld != pot2y ) || ( abs(time-pot2yLC) > interval )){
     xbee.println(4000+pot2y);
     pot2yLC = time;
   }
-  pot2yOld = pot2y;
+  
   
   // Take joystick button and treat it as a switch, switching beast mode values each time
   // it is pressed. Uses similar process as previous potentiometers
   joy1 = digitalRead(4);
-  if(joy1 == HIGH && joy1Old == LOW && time - lastButton > 200){
+  if(joy1 == HIGH && joy1Old == LOW && time - lastButton > 100){
     if (beastMode)
       beastMode = false;
     else
       beastMode = true;
     lastButton = millis();
   }
+  
+  // Set current values as the old values to determine if future values have changed
+  pot1xOld = pot1x;
+  pot1yOld = pot1y;
+  pot2yOld = pot2y;
   joy1Old = joy1;
   
   // If last message received is longer than timeout, set connection status to false
@@ -156,8 +158,11 @@ void loop() {
 }
 
 // Funtion to adjust range from potentiometers where the resting point isn't in the middle
-int adjustRange(int raw, int low, int midLow, int midHigh, int high){
+int adjustRange(int raw, int low, int midLow, int midHigh, int high, int type){
+   // Value to be manipulated and returned in the end
    int i;
+   
+   // Readjust the median from the potentiometer
    if (raw < midLow){
      i = map(raw,low,midLow,0,512);
    } else if (raw > midHigh){
@@ -166,10 +171,37 @@ int adjustRange(int raw, int low, int midLow, int midHigh, int high){
      i = 512;
    }
    
-   if (beastMode){
-     return map(i,0,1023,0,180);
+   // Beastmode to determine whether to use the full range of the potentiometer or not
+   if (beastMode || type == 4){
+     i = map(i,0,1023,0,180);
+   } else {
+     i = map(i,0,1023,45,135);
    }
    
-   return map(i,0,1023,45,135);
+   // Adjust range specifically to pot1x and the motor's specifications
+   if (type == 1){
+     // Flip x-axis from 180-0 to 0-180
+     i = 180 - i;
+     
+     if (i < 90){
+       i = map(i,0,90,20,83);
+     } else if (i > 90){
+       i = map(i,90,180,98,180);
+     } else {
+       i = 90;
+     }
+   }
+   
+   // Adjust range specifically to pot1y and the motor's specifications
+   if (type == 2){
+     if (i > 90){
+       i = map(i,90,180,98,180);
+     } else {
+       i = 90;
+     }
+   }
+   
+   return i;
 }
+
 
