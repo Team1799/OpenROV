@@ -1,54 +1,59 @@
 // Arduino Submarine Project
-// Boat Code
+// Recieving Code
 // Created by: Josh V.
 // 
 // Purpose
-//   Receive values from transmitting arduino and control motors with it
+//   Receive values from a transmitting arduino and control motors with those values
+// 
+// Features
+//   - Recieve values from Xbee and interpret them
+//   - Transmits a constant to inform recieving arduino of connection status
+//   - Turns off motors when values have not been received within the timeout for safety
 //
+
+// Library to create a serial input/output for Xbee and library to control motors
 #include <SoftwareSerial.h>
 #include <Servo.h>
 
-// Setup xbee pins 0.
+// Setup serial for Xbee 
 SoftwareSerial xbee(2,3);
 
-// Setup servo variables
+// Time without receiving a message until determining no connection (1 sec = 1000)
+int timeout = 5000;
+
+// Setup servo (motor) variables
+Servo front;
 Servo left;
 Servo right;
-Servo front;
+Servo wench;
 
-// Potentiometer values from joysticks and joystick buttons
-int pot1x;
-int pot1y;
-int pot2x;
-int pot2y;
-boolean joy1;
-boolean joy2;
+// Recieved potentiometer values from joysticks and joystick buttons
+int pot1x;  // Turning (front motor)
+int pot1y;  // Forward Speed (left and right motor)
+int pot2y;  // Submarine Reel (wench motor)
 
 // Time variables for determining if there's a connection
 long time;
 long lastMessage;
 
-// Time without receiving a message until determining no connection (1 sec = 1000)
-int timeout = 5000;
-
 // Value to store received data
 unsigned int value;
 
 void setup() {
-  // Open up serial and xbee for data transmission
+  // Open up serial ports for computer and xbee for data transmission
   Serial.begin(9600);
   xbee.begin(9600);
   
   // Open up servo pins
-  left.attach(5);
-  right.attach(6);
+  wench.attach(5);
   front.attach(9);
-  pinMode(12, OUTPUT); 
+  left.attach(10);
+  right.attach(11);
 }
 
 
 void loop() {
-  // Get current time
+  // Record current time
   time = millis();
  
   // Wait until a message is received
@@ -58,6 +63,8 @@ void loop() {
     
     // Read and store recieved value
     value = xbee.parseInt();
+    
+    // "Flush" previously recieved data to not overwhelm the arduino
     xbee.flush();
     
     // Make sure value isn't null (or zero)
@@ -70,20 +77,28 @@ void loop() {
       if(value/1000 == 4)
         pot2y = value%1000;
     }
-    xbee.println(420);
     
     // Return value to confirm connection
+    xbee.println(420);
   }
   
-  // Prevents motor movement unless there is a connection
-  
-  
+  // Run the motors if there is an active connection
   if ((abs(lastMessage-time) < timeout)){
     front.write(pot1x);
+    left.write(pot1y);
+    right.write(pot1y);
+    wench.write(pot2y);
   }
+  
+  // Turn the motors off if there's no connection to prevent a runaway boat
   else {
     front.write(90);
+    left.write(90);
+    right.write(90);
+    wench.write(90);
   }
+  
+  // Delay to not overwhelm the arduino
   delay(50);
 }
 

@@ -1,5 +1,5 @@
 // Arduino Submarine Project
-// Transmitti Code
+// Transmitting Code
 // Created by: Josh V.
 // 
 // Purpose
@@ -29,12 +29,14 @@ int pot1x;
 int pot1y;
 int pot2y;
 int joy1;
+int led;
 
 // Older values of potentiometers to determine if they've change
 int pot1xOld;
 int pot1yOld;
 int pot2yOld;
 int joy1Old;
+int ledOld;
 
 // Time since last potentiometer value changed
 long pot1xLC = 0 - interval;
@@ -67,6 +69,7 @@ void setup() {
   pinMode(11, OUTPUT); // yellow connection LED
   pinMode(12, OUTPUT); // green connection LED
   
+  led = LOW;
   digitalWrite(4, HIGH); // enable pull-up resistor for joystick button
 }
 
@@ -82,7 +85,6 @@ void loop() {
     
     // "Flush" previously recieved data to not overwhelm the arduino
     xbee.flush();
-    
     // If retrieved value is 420, then confirm connection status
     if(value == 420){
       // Get time last recieved a message and set connection status to true
@@ -138,22 +140,29 @@ void loop() {
   }
 
   // Turn connection LED on or off if connected
-  if (isConnected) {
+  if (isConnected){
     digitalWrite(12, HIGH);
-    digitalWrite(11, LOW);
-  } else {
-    digitalWrite(12, LOW);
-    digitalWrite(11, HIGH);
+  } else { 
+    if (time - ledOld >= 300) {
+      ledOld = time;
+      
+      if (led == LOW)
+        led = HIGH;
+      else
+        led = LOW;
+
+      digitalWrite(12, led);
+    }
   }
   
   // Turn beastmode LED on or off if enabled
   if (beastMode) {
-    digitalWrite(10, HIGH); 
+    digitalWrite(10, HIGH);
   } else {
     digitalWrite(10, LOW);
   }
   
-  // Delay for accurate pot readings and to not overload the receiving end
+  // Delay for accurate pot readings and to not overload the receiving arduino
   delay(150);
 }
 
@@ -201,6 +210,7 @@ int adjustRange(int raw, int low, int midLow, int midHigh, int high, int type){
      }
    }
    
+   // Return adjusted value back into the program
    return i;
 }
 
